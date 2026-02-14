@@ -1,6 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 
 class BrowseScreen extends StatefulWidget {
   const BrowseScreen({super.key});
@@ -18,12 +23,124 @@ class _BrowseScreenState extends State<BrowseScreen> {
   final phoneCtrl = TextEditingController();
   final lineCtrl = TextEditingController();
 
+  // -------------- ตัวบันทึกข้อมูลลง DB -----------------------------------
+  // ตัวแปรควบคุมสถานะ Loading ตอนบันทึก
+  bool _isSaving = false;
+
+  // ฟังก์ชัน Upload รูปขึ้น Cloudinary แล้วคืน URL กลับมา
+  Future<String?> _uploadImageToCloudinary(File imageFile) async {
+    try {
+      // สร้าง URL Endpoint ของ Cloudinary
+      final uri = Uri.parse(
+        "https://api.cloudinary.com/v1_1/das1fev8e/image/upload",
+      );
+
+      // สร้าง Multipart Request สำหรับส่งไฟล์
+      final request = http.MultipartRequest('POST', uri);
+
+      // ใส่ Upload Preset ที่สร้างไว้ใน Cloudinary Dashboard
+      request.fields['upload_preset'] = 'profile_images';
+
+      // แนบไฟล์รูปภาพ
+      request.files.add(
+        await http.MultipartFile.fromPath('file', imageFile.path),
+      );
+
+      // ส่ง Request และรอ Response
+      final response = await request.send();
+      final responseBody = await response.stream.bytesToString();
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200) {
+        // คืน URL รูปที่ Upload สำเร็จ
+        return jsonData['secure_url'];
+      } else {
+        print("Upload ล้มเหลว: $responseBody");
+        return null;
+      }
+    } catch (e) {
+      print("Cloudinary Error: $e");
+      return null;
+    }
+  }
+
+  // ฟังก์ชันบันทึกข้อมูลลง Firestore
+  Future<void> _savePost() async {
+    // เช็คว่ากรอกข้อมูลสำคัญครบหรือยัง
+    if (titleCtrl.text.trim().isEmpty || locationCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("กรุณากรอกชื่อสิ่งของและสถานที่พบ"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true); // แสดง Loading
+
+    try {
+      // ดึง UID ของ User ที่ Login อยู่
+      final String? uid = FirebaseAuth.instance.currentUser?.uid;
+
+      if (uid == null) {
+        throw Exception("ไม่พบข้อมูลผู้ใช้ กรุณา Login ใหม่");
+      }
+
+      // ถ้ามีรูป → Upload ขึ้น Cloudinary ก่อน แล้วรับ URL กลับมา
+      String? imageUrl;
+      if (_image != null) {
+        imageUrl = await _uploadImageToCloudinary(_image!);
+      }
+
+      // บันทึกข้อมูลลง Firestore ใน collection 'posts'
+      await FirebaseFirestore.instance.collection('posts').add({
+        'uid': uid, // UID ของคนที่โพส
+        'title': titleCtrl.text.trim(), // ชื่อสิ่งของ
+        'desc': detailCtrl.text.trim(), // รายละเอียด
+        'location': locationCtrl.text.trim(), // สถานที่พบ
+        'phone': phoneCtrl.text.trim(), // เบอร์โทร
+        'lineId': lineCtrl.text.trim(), // Line ID
+        'imageUrl': imageUrl, // URL รูปจาก Cloudinary (null ถ้าไม่มีรูป)
+        'type': 'found', // ประเภทโพส (found = พบของ)
+        'status': 'กำลังตามหาเจ้าของ', // สถานะเริ่มต้น
+        'createdAt': FieldValue.serverTimestamp(), // เวลาที่โพส
+      });
+
+      // บันทึกสำเร็จ → แจ้งแล้วกลับหน้าก่อนหน้า
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("บันทึกข้อมูลสำเร็จ"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      // แจ้ง Error ถ้าเกิดปัญหา
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("เกิดข้อผิดพลาด: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      // ปิด Loading ไม่ว่าจะสำเร็จหรือไม่
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   File? _image;
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickImage(ImageSource source) async {
-    final XFile? picked =
-    await _picker.pickImage(source: source, imageQuality: 70);
+    final XFile? picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 70,
+    );
 
     if (picked != null) {
       setState(() {
@@ -141,28 +258,31 @@ class _BrowseScreenState extends State<BrowseScreen> {
                     ),
                     child: _image == null
                         ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.add_photo_alternate,
-                            size: 48, color: Color(0xFF2196F3)),
-                        SizedBox(height: 8),
-                        Text(
-                          "แตะเพื่อแนบรูป",
-                          style: TextStyle(
-                            color: Color(0xFF2196F3),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    )
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(
+                                Icons.add_photo_alternate,
+                                size: 48,
+                                color: Color(0xFF2196F3),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                "แตะเพื่อแนบรูป",
+                                style: TextStyle(
+                                  color: Color(0xFF2196F3),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          )
                         : ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.file(
-                        _image!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      ),
-                    ),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.file(
+                              _image!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                            ),
+                          ),
                   ),
                   if (_image != null)
                     Positioned(
@@ -171,8 +291,10 @@ class _BrowseScreenState extends State<BrowseScreen> {
                       child: CircleAvatar(
                         backgroundColor: Colors.white,
                         child: IconButton(
-                          icon: const Icon(Icons.edit,
-                              color: Color(0xFF2196F3)),
+                          icon: const Icon(
+                            Icons.edit,
+                            color: Color(0xFF2196F3),
+                          ),
                           onPressed: _showImagePicker,
                         ),
                       ),
@@ -193,12 +315,9 @@ class _BrowseScreenState extends State<BrowseScreen> {
                   ),
                   padding: EdgeInsets.zero,
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("บันทึกข้อมูลสำเร็จ")),
-                  );
-                  Navigator.pop(context);
-                },
+                // เรียก _savePost() แทนของเดิม
+                // ปิดปุ่มถ้ากำลังบันทึกอยู่ ป้องกันกดซ้ำ
+                onPressed: _isSaving ? null : _savePost,
                 child: Ink(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -206,12 +325,17 @@ class _BrowseScreenState extends State<BrowseScreen> {
                     ),
                     borderRadius: BorderRadius.all(Radius.circular(30)),
                   ),
-                  child: const Center(
-                    child: Text(
-                      "บันทึกข้อมูล",
-                      style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                  child: Center(
+                    // เปลี่ยนข้อความตามสถานะ
+                    child: _isSaving
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            "บันทึกข้อมูล",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
               ),

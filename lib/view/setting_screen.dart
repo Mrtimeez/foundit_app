@@ -60,80 +60,76 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // --- เริ่มส่วนที่แก้ไข: ใช้ StreamBuilder ดึงข้อมูล ---
-                  StreamBuilder<DocumentSnapshot>(
-                    // ดึงข้อมูลจาก Collection 'users' ที่มี ID ตรงกับคนล็อกอินปัจจุบัน
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(FirebaseAuth.instance.currentUser?.uid)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      // 1. ระหว่างรอโหลดข้อมูล ให้หมุนๆ ไปก่อน
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const CircularProgressIndicator(color: Colors.white);
-                      }
+                  //--- ใช้ StreamBuilder ดึงข้อมูล ---
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(FirebaseAuth.instance.currentUser?.uid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const CircularProgressIndicator(color: Colors.white);
+                    }
 
-                      // 2. เตรียมตัวแปรไว้รับค่า (ถ้าไม่มีข้อมูลให้ใช้ค่า Default)
-                      String username = "User";
-                      String email = FirebaseAuth.instance.currentUser?.email ?? "";
+                    String username = "User";
+                    String email = FirebaseAuth.instance.currentUser?.email ?? "";
+                    String? photoURL; // ✅ เพิ่มตัวแปรเก็บ URL รูป
 
-                      // ถ้ามีข้อมูลใน Database ให้ดึงมาทับค่า Default
-                      if (snapshot.hasData && snapshot.data!.exists) {
-                        Map<String, dynamic> data =
-                        snapshot.data!.data() as Map<String, dynamic>;
-                        username = data['username'] ?? username;
-                        // email = data['email'] ?? email; // ถ้าอยากดึง email จาก database ก็เปิดบรรทัดนี้
-                      }
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      Map<String, dynamic> data =
+                      snapshot.data!.data() as Map<String, dynamic>;
+                      username = data['username'] ?? username;
+                      photoURL = data['photoURL']; // ✅ ดึง URL รูปจาก Firestore
+                    }
 
-                      // 3. แสดงผล UI (รูป, ชื่อ, อีเมล, ปุ่มแก้ไข)
-                      return Column(
-                        children: [
-                          const CircleAvatar(
-                            radius: 45,
+                    return Column(
+                      children: [
+                        // ✅ แสดงรูปจาก Cloudinary ถ้ามี ถ้าไม่มีแสดงไอคอน default
+                        CircleAvatar(
+                          radius: 45,
+                          backgroundColor: Colors.white,
+                          backgroundImage: photoURL != null
+                              ? NetworkImage(photoURL)  // รูปจาก Cloudinary URL
+                              : null,
+                          child: photoURL == null
+                              ? const Icon(Icons.person, size: 50, color: Color(0xFF2196F3))
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+
+                        Text(
+                          username,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          email,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 14),
+
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
-                            child: Icon(Icons.person,
-                                size: 50, color: Color(0xFF2196F3)),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // ชื่อ (ดึงมาจากตัวแปร username)
-                          Text(
-                            username,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold),
-                          ),
-
-                          // อีเมล (ดึงมาจากตัวแปร email)
-                          Text(
-                            email,
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          // ปุ่มแก้ไขข้อมูล
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFF2196F3),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
+                            foregroundColor: const Color(0xFF2196F3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const EditProfileScreen()),
-                              );
-                            },
-                            child: const Text("แก้ไขข้อมูล"),
-                          )
-                        ],
-                      );
-                    },
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const EditProfileScreen()),
+                            );
+                          },
+                          child: const Text("แก้ไขข้อมูล"),
+                        ),
+                      ],
+                    );
+                  },
                   ),
                 ],
               ),
