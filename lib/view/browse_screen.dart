@@ -230,7 +230,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
               child: Column(
                 children: [
                   _field("เบอร์โทร", phoneCtrl),
-                  _field("Line ID", lineCtrl),
+                  _field("Line or FB ID", lineCtrl),
                 ],
               ),
             ),

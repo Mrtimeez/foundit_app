@@ -21,6 +21,27 @@ class _HomepageState extends State<Homepage> {
     await FirebaseAuth.instance.signOut();
   }
 
+  Color _statusColor(String status) {
+    switch (status) {
+    // ✅ สถานะของโพส "พบของ" (type: found)
+      case "กำลังตามหาเจ้าของ":
+        return Colors.blue;
+      case "มีคนติดต่อ":
+        return Colors.purple;
+      case "คืนของแล้ว":
+        return Colors.grey;
+
+    // ✅ สถานะของโพส "ของหาย" (type: lost)
+      case "กำลังตามหา":
+        return Colors.orange;
+      case "พบของแล้ว":
+        return Colors.green;
+
+      default:
+        return Colors.orange;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,7 +176,7 @@ class _HomepageState extends State<Homepage> {
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 1.0, // ✅ เปลี่ยนเป็น 1.0 ให้ card เป็นสี่เหลี่ยมจตุรัส
+                    childAspectRatio: 0.75, // ✅ เปลี่ยนเป็น 0.75 ให้ card เป็นสี่เหลี่ยมจตุรัส
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
@@ -171,6 +192,7 @@ class _HomepageState extends State<Homepage> {
                       imageUrl: data['imageUrl'],
                       time: _formatTime(data['createdAt']),
                       status: data['status'] ?? "รอการติดต่อ",
+                      type: data['type'] ?? "lost",
                     );
                   },
                 );
@@ -299,6 +321,7 @@ class _HomepageState extends State<Homepage> {
         required String lineId,
         required String time,
         required String status,
+        required String type,
         String? imageUrl,
       }) {
     return GestureDetector(
@@ -377,9 +400,50 @@ class _HomepageState extends State<Homepage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Badge type บอกว่าเป็นโพสประเภทไหน
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: type == 'lost'
+                                ? Colors.red.shade50
+                                : Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            type == 'lost' ? "🔍 ของหาย" : "📦 พบของ",
+                            style: TextStyle(
+                              color: type == 'lost' ? Colors.red : Colors.blue,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        // Badge สถานะ
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _statusColor(status).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(
+                              color: _statusColor(status),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // เวลา
                     Text(
                       time,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
                     ),
                   ],
                 ),
