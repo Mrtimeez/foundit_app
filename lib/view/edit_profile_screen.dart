@@ -143,7 +143,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       // ตั้งชื่อไฟล์ตาม UID ของ User เพื่อให้ทับไฟล์เก่าได้เลย
       // ถ้าอัปโหลดรูปใหม่จะ replace รูปเก่าอัตโนมัติ ไม่เปลืองพื้นที่
-      request.fields['public_id'] = currentUser!.uid;
+      request.fields['public_id'] = "${currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}";
 
       // แนบไฟล์รูปภาพเข้าไปใน Request
       request.files.add(
@@ -163,21 +163,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         // Upload สำเร็จ → ดึง URL รูปจาก Response (https ปลอดภัยกว่า http)
         final String photoUrl = jsonData['secure_url'];
 
+        // ✅ เพิ่ม timestamp เพื่อ bypass cache
+        final String urlWithTimestamp = "$photoUrl?t=${DateTime.now().millisecondsSinceEpoch}";
+
         // บันทึก URL ลง Firestore ใน field 'photoURL'
         await FirebaseFirestore.instance
             .collection('users')
             .doc(currentUser!.uid)
             .update({
-          'photoURL': photoUrl,                          // URL รูปโปรไฟล์ใหม่
+          'photoURL': urlWithTimestamp, // ✅ ใช้ URL ที่มี timestamp // URL รูปโปรไฟล์ใหม่
           'updated_at': FieldValue.serverTimestamp(),   // เวลาที่แก้ไขล่าสุด
         });
 
+        imageCache.clear();
+        imageCache.clearLiveImages();
+        await Future.delayed(const Duration(milliseconds: 100));
+
         // อัปเดต URL ในหน้านี้ด้วยเพื่อให้แสดงรูปใหม่จาก Cloudinary
         setState(() {
-          _currentPhotoUrl = photoUrl;
+          _currentPhotoUrl = urlWithTimestamp; // ✅ ใช้ URL ที่มี timestamp
         });
 
-        print("Upload สำเร็จ! URL: $photoUrl");
+        print("Upload สำเร็จ! URL: $urlWithTimestamp");
 
         // แจ้งว่า Upload สำเร็จ
         if (mounted) {
@@ -378,42 +385,52 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   // แสดงรูปตามลำดับ: รูปที่เพิ่งเลือก → URL จาก Cloudinary → ไอคอน default
   Widget _buildProfileImage() {
     return GestureDetector(
-      onTap: _isUploading ? null : _pickImage, // ถ้ากำลัง Upload ให้กดไม่ได้
+      onTap: _isUploading ? null : _pickImage,
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: 55,
-            backgroundColor: Colors.grey.shade200, // พื้นหลังสีเทาอ่อน
-            // เลือก Image Provider ตามสถานะที่มีข้อมูล
-            backgroundImage: _image != null
-                ? FileImage(_image!)                        // รูปที่เพิ่งเลือกจาก Gallery (Preview)
-                : (_currentPhotoUrl != null
-                ? NetworkImage(_currentPhotoUrl!)       // รูปจาก Cloudinary URL
-                : null) as ImageProvider?,
-            // ถ้ายังไม่มีรูปให้แสดงไอคอน person
-            child: (_image == null && _currentPhotoUrl == null)
-                ? const Icon(Icons.person, size: 55, color: Colors.grey)
-                : null,
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey.shade200,
+            ),
+            child: ClipOval(
+              child: _image != null
+                  ? Image.file(_image!, fit: BoxFit.cover)
+                  : (_currentPhotoUrl != null
+                  ? Image.network(
+                _currentPhotoUrl!,
+                fit: BoxFit.cover,
+                key: ValueKey(_currentPhotoUrl), // ✅ เพิ่ม key เพื่อ rebuild ทุกครั้งที่ URL เปลี่ยน
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.person,
+                  size: 55,
+                  color: Colors.grey,
+                ),
+              )
+                  : const Icon(Icons.person, size: 55, color: Colors.grey)),
+            ),
           ),
 
-          // แสดง Loading Indicator ทับรูป ตอนกำลัง Upload
+          // Loading indicator เหมือนเดิม
           if (_isUploading)
             Positioned.fill(
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Colors.black45, // พื้นหลังโปร่งแสงสีดำ
+                  color: Colors.black45,
                   shape: BoxShape.circle,
                 ),
                 child: const Center(
                   child: CircularProgressIndicator(
-                    color: Colors.white, // Loading สีขาว
+                    color: Colors.white,
                     strokeWidth: 3,
                   ),
                 ),
               ),
             ),
 
-          // ไอคอนกล้องมุมล่างขวา (ซ่อนตอนกำลัง Upload)
+          // ไอคอนกล้อง
           if (!_isUploading)
             Positioned(
               bottom: 0,
@@ -421,7 +438,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: const BoxDecoration(
-                  color: Color(0xFF2196F3), // วงกลมสีฟ้า
+                  color: Color(0xFF2196F3),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(

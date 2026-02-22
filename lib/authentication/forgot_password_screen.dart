@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 1. อย่าลืม import firebase_auth
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({Key? key}) : super(key: key);
@@ -9,18 +9,22 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  // 2. ตัวควบคุมช่องกรอกข้อความ
+
+  // [1] ตัวควบคุมช่องกรอกข้อมูล (Controller)
+  // ใช้สำหรับดึงค่าข้อความที่ผู้ใช้พิมพ์ในช่อง Email ออกมาใช้งาน
   final TextEditingController _emailController = TextEditingController();
 
   @override
   void dispose() {
+    // ล้างหน่วยความจำของ Controller เมื่อหน้านี้ถูกปิดลง (ช่วยประหยัด RAM)
     _emailController.dispose();
     super.dispose();
   }
 
-  // 3. ฟังก์ชันส่งอีเมลรีเซ็ตรหัสผ่าน
+  // [2] ฟังก์ชันส่งอีเมลรีเซ็ตรหัสผ่าน (Logic หลัก)
   Future passwordReset() async {
-    // ตรวจสอบว่ากรอกอีเมลหรือยัง
+
+    // --- ขั้นตอนที่ 1: ตรวจสอบข้อมูลเบื้องต้น (Validation) ---
     if (_emailController.text.trim().isEmpty) {
       showDialog(
         context: context,
@@ -28,26 +32,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           content: Text("กรุณากรอกอีเมล"),
         ),
       );
-      return;
+      return; // หยุดการทำงานถ้าไม่ได้กรอกอีเมล
     }
 
-    // แสดง Loading
+    // --- ขั้นตอนที่ 2: แสดงวงกลมโหลด (Loading Indicator) ---
+    // เพื่อให้ผู้ใช้รู้ว่าระบบกำลังทำงาน ไม่ได้ค้าง
     showDialog(
       context: context,
+      barrierDismissible: false, // ป้องกันผู้ใช้กดที่ว่างเพื่อปิดตอนกำลังโหลด
       builder: (context) {
         return const Center(child: CircularProgressIndicator());
       },
     );
 
     try {
+      // --- ขั้นตอนที่ 3: สั่งให้ Firebase ส่งอีเมลรีเซ็ต ---
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: _emailController.text.trim(),
       );
 
-      // ปิด Loading
+      // --- ขั้นตอนที่ 4: เมื่อสำเร็จ (Success) ---
+      // ปิดวงกลมโหลด (Pop ตัวแรก)
       if (mounted) Navigator.pop(context);
 
-      // แสดงข้อความสำเร็จ
+      // แสดง Popup แจ้งเตือนผู้ใช้ว่าส่งเมลแล้ว
       if (mounted) {
         showDialog(
           context: context,
@@ -57,8 +65,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context); // ปิด Dialog
-                    Navigator.pop(context); // กลับไปหน้า Login
+                    Navigator.pop(context); // ปิด Dialog นี้
+                    Navigator.pop(context); // ย้อนกลับไปยังหน้า Login ทันที
                   },
                   child: const Text("OK"),
                 ),
@@ -68,10 +76,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      // ปิด Loading
+      // --- ขั้นตอนที่ 5: จัดการข้อผิดพลาด (Error Handling) ---
+
+      // ปิดวงกลมโหลดก่อนแสดงข้อความ Error
       if (mounted) Navigator.pop(context);
 
-      // แปลง Error เป็นข้อความที่เข้าใจง่าย
+      // แปลงรหัส Error จาก Firebase ให้เป็นภาษาไทยที่คนทั่วไปอ่านเข้าใจ
       String errorMessage = e.message ?? "เกิดข้อผิดพลาด";
       if (e.code == 'user-not-found') {
         errorMessage = "ไม่พบอีเมลนี้ในระบบ";
@@ -79,7 +89,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         errorMessage = "รูปแบบอีเมลไม่ถูกต้อง";
       }
 
-      // แสดง Error
+      // แสดง Popup แจ้งเตือนสาเหตุที่ส่งไม่สำเร็จ
       if (mounted) {
         showDialog(
           context: context,
@@ -102,25 +112,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        // [3] ส่วนของการตกแต่งพื้นหลัง (Background Decoration)
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
+          gradient: LinearGradient( // ไล่เฉดสีฟ้าจากบนลงล่าง
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF2EC4FF),
-              Color(0xFF2196F3),
-            ],
+            colors: [Color(0xFF2EC4FF), Color(0xFF2196F3)],
           ),
         ),
-        child: SafeArea( //SafeArea กันติดขอบจอมือถือรุ่นใหม่
-          child: SingleChildScrollView(
+        child: SafeArea(
+          child: SingleChildScrollView( // ป้องกันหน้าจอ "ล้น" เวลาคีย์บอร์ดเด้งขึ้นมา
             child: Column(
               children: [
                 const SizedBox(height: 80),
 
-                /// ---------- Card ----------
+                // [4] บัตรรายการ (Card UI)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 24),
                   padding: const EdgeInsets.all(24),
@@ -132,26 +140,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     children: [
                       const Text(
                         "Forgot Password",
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
-
                       const SizedBox(height: 12),
-
                       const Text(
                         "Enter your email address and we will send you a link to reset your password.",
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey),
                       ),
-
                       const SizedBox(height: 24),
 
-                      /// Email Field
+                      // [5] ช่องกรอกอีเมล (Email Input)
                       TextField(
-                        controller: _emailController, // เชื่อม Controller ตรงนี้
-                        keyboardType: TextInputType.emailAddress, // แป้นพิมพ์แบบอีเมล
+                        controller: _emailController, // เชื่อมกับ Controller ที่ประกาศไว้ข้างบน
+                        keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           prefixIcon: const Icon(Icons.email),
                           hintText: "Email",
@@ -166,12 +168,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                       const SizedBox(height: 24),
 
-                      /// Send Button
+                      // [6] ปุ่มกดส่ง (Send Button)
                       SizedBox(
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: passwordReset, // เรียกฟังก์ชัน reset
+                          onPressed: passwordReset, // เมื่อกดจะวิ่งไปทำงานที่ฟังก์ชันข้างบน
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2196F3),
                             shape: RoundedRectangleBorder(
@@ -180,10 +182,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                           child: const Text(
                             "Send Reset Link",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
+                            style: TextStyle(color: Colors.white, fontSize: 16),
                           ),
                         ),
                       ),
@@ -193,21 +192,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 24),
 
-                /// Back to Sign In
+                // [7] ปุ่มย้อนกลับ (Back Navigation)
                 GestureDetector(
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(context); // ปิดหน้านี้เพื่อย้อนกลับไปหน้าก่อนหน้า (Login)
                   },
                   child: const Text(
                     "Back to Sign In",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
-
-                const SizedBox(height: 24),
               ],
             ),
           ),
