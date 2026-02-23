@@ -31,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // 1. ฟังก์ชัน Login ด้วย Email & Password
   // --------------------------------------------------------------------------
   Future<void> signIn() async {
+    final navigator = Navigator.of(context, rootNavigator: true);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -43,18 +44,10 @@ class _LoginScreenState extends State<LoginScreen> {
         password: passwordController.text.trim(),
       );
 
-      if (!mounted) return;
-      Navigator.pop(context); // ปิด Loading อันดับแรก
+      navigator.pop();
 
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const MainNavigation()),
-            (route) => false, // ล้าง Stack หน้าจอเก่า (และ Dialog ที่อาจจะค้างอยู่) ทิ้งทั้งหมด
-      );
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context); // ปิด Loading
+      navigator.pop(); // ปิดตอนเกิด Error Auth
 
       // จัดการ Error Message
       String message = "เกิดข้อผิดพลาด";
@@ -74,6 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // 2. ฟังก์ชัน Login ด้วย Google
   // --------------------------------------------------------------------------
   Future<void> signInWithGoogle() async {
+    final navigator = Navigator.of(context, rootNavigator: true);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -86,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
-        if (mounted) Navigator.pop(context);
+        navigator.pop(); // ถ้ากดยกเลิก ก็ให้ปิดวงกลม
         return;
       }
 
@@ -113,15 +107,10 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      if (!mounted) return;
-      Navigator.pop(context);
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const MainNavigation()),
-            (route) => false,
-      );
+      navigator.pop();
+
     } catch (e) {
-      if (mounted) Navigator.pop(context);
+      navigator.pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Google Error: $e"), backgroundColor: Colors.redAccent),
       );
