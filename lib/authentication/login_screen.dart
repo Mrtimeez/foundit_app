@@ -31,7 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
   // 1. ฟังก์ชัน Login ด้วย Email & Password
   // --------------------------------------------------------------------------
   Future<void> signIn() async {
-    final navigator = Navigator.of(context, rootNavigator: true);
+    // 🌟 ดึงตัวควบคุมระดับสูงสุดมาเก็บไว้ (รับรองว่าตัวนี้ไม่ตายกลางอากาศ)
+    final rootNav = Navigator.of(context, rootNavigator: true);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -44,12 +46,18 @@ class _LoginScreenState extends State<LoginScreen> {
         password: passwordController.text.trim(),
       );
 
-      navigator.pop();
+      // 🌟 1. ปิดวงกลม Loading
+      rootNav.pop();
+
+      // 🌟 2. สั่งย้ายหน้าไป MainNavigation และล้างหน้าเก่าทิ้งให้เกลี้ยง!
+      rootNav.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const MainNavigation()),
+            (route) => false,
+      );
 
     } on FirebaseAuthException catch (e) {
-      navigator.pop(); // ปิดตอนเกิด Error Auth
+      rootNav.pop(); // ปิดวงกลมตอนเกิด Error
 
-      // จัดการ Error Message
       String message = "เกิดข้อผิดพลาด";
       if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
         message = "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
@@ -60,6 +68,8 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
       );
+    } catch (e) {
+      rootNav.pop(); // ปิดวงกลมตอนเกิด Error อื่นๆ
     }
   }
 
@@ -67,7 +77,9 @@ class _LoginScreenState extends State<LoginScreen> {
   // 2. ฟังก์ชัน Login ด้วย Google
   // --------------------------------------------------------------------------
   Future<void> signInWithGoogle() async {
-    final navigator = Navigator.of(context, rootNavigator: true);
+    // 🌟 ดึงตัวควบคุมระดับสูงสุดมาเก็บไว้เช่นกัน
+    final rootNav = Navigator.of(context, rootNavigator: true);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -76,11 +88,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut(); // ให้เลือก Account ใหม่ทุกครั้ง
+      await googleSignIn.signOut();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
-        navigator.pop(); // ถ้ากดยกเลิก ก็ให้ปิดวงกลม
+        rootNav.pop(); // ถ้าผู้ใช้กดยกเลิก ให้ปิดวงกลม
         return;
       }
 
@@ -92,7 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
 
-      // บันทึกข้อมูลลง Firestore ถ้าเป็นผู้ใช้ใหม่
       if (userCredential.user != null) {
         final uid = userCredential.user!.uid;
         final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -107,10 +118,17 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      navigator.pop();
+      // 🌟 1. ปิดวงกลม Loading
+      rootNav.pop();
+
+      // 🌟 2. สั่งย้ายหน้าไป MainNavigation และล้างหน้าเก่าทิ้ง!
+      rootNav.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const MainNavigation()),
+            (route) => false,
+      );
 
     } catch (e) {
-      navigator.pop();
+      rootNav.pop(); // ปิดวงกลมตอนเกิด Error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Google Error: $e"), backgroundColor: Colors.redAccent),
       );
