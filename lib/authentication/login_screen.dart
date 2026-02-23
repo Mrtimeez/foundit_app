@@ -31,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
   // 1. ฟังก์ชัน Login ด้วย Email & Password
   // --------------------------------------------------------------------------
   Future<void> signIn() async {
-    // แสดงวงกลมโหลด (Loading)
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -45,12 +44,13 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (!mounted) return;
-      Navigator.pop(context); // ปิด Loading
+      Navigator.pop(context); // ปิด Loading อันดับแรก
 
-      // ไปหน้าหลักและล้าง Stack หน้าจอเก่าทิ้ง
-      Navigator.pushReplacement(
+
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const MainNavigation()),
+            (route) => false, // ล้าง Stack หน้าจอเก่า (และ Dialog ที่อาจจะค้างอยู่) ทิ้งทั้งหมด
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -115,9 +115,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
       Navigator.pop(context);
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const MainNavigation()),
+            (route) => false,
       );
     } catch (e) {
       if (mounted) Navigator.pop(context);
