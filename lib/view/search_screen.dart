@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';               // import Flutter UI framework
 import 'package:cloud_firestore/cloud_firestore.dart'; // import Firestore สำหรับดึงข้อมูล
-import 'item_detail_screen.dart';                      // import หน้า PostDetailScreen สำหรับดูรายละเอียด
+import 'postdetail_screen.dart';                      // import หน้า PostDetailScreen สำหรับดูรายละเอียด
+import 'package:firebase_auth/firebase_auth.dart';
 
 // SearchScreen เป็น StatefulWidget เพราะมีการเปลี่ยนแปลง UI (ค้นหา, filter)
 class SearchScreen extends StatefulWidget {
@@ -168,7 +169,15 @@ class _SearchScreenState extends State<SearchScreen> {
                     itemCount: docs.length, // จำนวน item ทั้งหมด
                     itemBuilder: (context, index) {
                       // ดึงข้อมูลจากแต่ละ document มาใส่ตัวแปร
+                      final String? currentUid = FirebaseAuth.instance.currentUser?.uid;//  ดึง UID ของคนที่กำลังใช้งานแอปอยู่ตอนนี้
+
+                      final doc = docs[index]; // ดึง document ออกมาก่อนเพื่อเอา ID
                       final data = docs[index].data() as Map<String, dynamic>;
+
+                      final String docId = doc.id; //ดึง UID ของเจ้าของโพสต์
+                      final String? postOwnerId = data['uid']; //ดึง ID ของโพสต์
+
+                      final bool isOwner = currentUid != null && currentUid == postOwnerId; //เช็คว่าคนที่ใช้งานอยู่คือเจ้าของโพสต์นี้หรือไม่
 
                       final String title    = data['title']    ?? "ไม่มีชื่อ";   // ชื่อสิ่งของ
                       final String desc     = data['desc']     ?? "";             // รายละเอียด
@@ -186,7 +195,10 @@ class _SearchScreenState extends State<SearchScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => PostDetailScreen(
+                              builder: (_) => isOwner
+                                  ? PostDetailScreen(
+                                //  ถ้าเป็นเจ้าของ ให้ส่ง docId ไปด้วย (ปุ่มแก้ไข/ลบ จะโผล่ขึ้นมา)
+                                docId: docId,
                                 title: title,
                                 desc: desc,
                                 location: location,
@@ -194,6 +206,18 @@ class _SearchScreenState extends State<SearchScreen> {
                                 lineId: lineId,
                                 time: time,
                                 status: status,
+                                imageUrl: imageUrl,
+                              )
+                                  : PostDetailScreen(
+                                //  ถ้าไม่ใช่เจ้าของ ไม่ต้องส่ง docId ไป (ซ่อนปุ่ม)
+                                title: title,
+                                desc: desc,
+                                location: location,
+                                phone: phone,
+                                lineId: lineId,
+                                time: time,
+                                status: status,
+                                imageUrl: imageUrl,
                               ),
                             ),
                           );
