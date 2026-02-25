@@ -16,7 +16,7 @@ class VersionScreen extends StatelessWidget {
       // ตัวหนังสืออยู่ตรงกลางหน้าจอเป๊ะๆ
       body: const Center(
         child: Text(
-          "App Version 1.0.2",
+          "App Version A1.0.4",
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 18),
         ),
